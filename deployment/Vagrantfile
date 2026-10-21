@@ -1,0 +1,88 @@
+# COMP-4001 Assignment 4 Sprint 1B -- Sharef Islam
+# Run `vagrant up` from this directory on a machine with Vagrant and VirtualBox.
+# The two public source repositories must contain the submitted Auto Deploy code.
+Vagrant.configure("2") do |config|
+  config.vm.box = "eurolinux-vagrant/centos-stream-9"
+  config.vm.box_version = "9.0.48"
+  config.vm.hostname = "sharef-auto"
+  config.vm.network "private_network", ip: "192.168.56.58"
+  config.vm.network "forwarded_port", guest: 3000, host: 3000, host_ip: "127.0.0.1"
+  config.vm.network "forwarded_port", guest: 5090, host: 5090, host_ip: "127.0.0.1"
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "COMP4001-Sharef-CentOS9-Auto"
+    vb.memory = 2048
+    vb.cpus = 2
+  end
+  config.vm.provision "shell", privileged: true, inline: <<-'SHELL'
+set -euo pipefail
+echo "=== Automatic deployment started: $(date -Is) ==="
+cat /etc/os-release
+hostname
+install -d /var/lib/comp4001
+if [ ! -f /var/lib/comp4001/system-updated ]; then
+  dnf update -y
+  touch /var/lib/comp4001/system-updated
+fi
+dnf install -y dnf-plugins-core git curl
+if [ ! -f /etc/yum.repos.d/docker-ce.repo ]; then
+  dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+fi
+dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+systemctl enable --now docker
+usermod -aG docker vagrant
+install -d -o vagrant -g vagrant /home/vagrant/devops-sprints
+update_repository() {
+  local url="$1" dest="$2"
+  if [ -d "$dest/.git" ]; then
+    [ "$(runuser -u vagrant -- git -C "$dest" remote get-url origin)" = "$url" ] || { echo "Unexpected repository at $dest" >&2; exit 1; }
+    runuser -u vagrant -- git -C "$dest" pull --ff-only
+  elif [ -e "$dest" ]; then
+    echo "Refusing to overwrite existing path: $dest" >&2
+    exit 1
+  else
+    runuser -u vagrant -- git clone "$url" "$dest"
+  fi
+}
+update_repository https://github.com/SharefRRC/COMP4001-Assignment4-Portfolio.git /home/vagrant/devops-sprints/Studentportfoliotemplate
+update_repository https://github.com/SharefRRC/COMP4001-Assignment4-Banking.git /home/vagrant/devops-sprints/BankingApp
+install -d /opt/comp4001
+cat > /opt/comp4001/compose.yaml <<'COMPOSE'
+name: comp4001-assignment4
+services:
+  studentportfolio:
+    image: studentportfolio:auto
+    build: /home/vagrant/devops-sprints/Studentportfoliotemplate
+    container_name: studentportfolio
+    hostname: studentportfolio
+    ports:
+      - "3000:80"
+    networks: [prfnet]
+    restart: unless-stopped
+  bankingapp:
+    image: bankingapp:auto
+    build: /home/vagrant/devops-sprints/BankingApp
+    container_name: bankingapp
+    hostname: bankingapp
+    ports:
+      - "5090:5090"
+    networks: [prfnet]
+    restart: unless-stopped
+networks:
+  prfnet:
+    name: prf-network
+    driver: bridge
+COMPOSE
+docker compose -f /opt/comp4001/compose.yaml config --quiet
+docker compose -f /opt/comp4001/compose.yaml up -d --build --wait --wait-timeout 180
+docker compose -f /opt/comp4001/compose.yaml ps
+docker network inspect prf-network
+curl -fsS http://127.0.0.1:3000/ | grep -F 'Welcome to My Portfolio Auto Deploy'
+curl -fsS http://127.0.0.1:3000/ | grep -F 'http://192.168.56.58:5090'
+curl -fsS http://127.0.0.1:5090/ | grep -F 'Welcome to the Banking App Auto Deploy'
+docker exec bankingapp node -e "require('http').get('http://studentportfolio/',r=>{console.log('Internal portfolio HTTP:',r.statusCode);process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"
+echo "Portfolio: http://192.168.56.58:3000"
+echo "Banking: http://192.168.56.58:5090"
+echo "=== Automatic deployment completed: $(date -Is) ==="
+  SHELL
+end

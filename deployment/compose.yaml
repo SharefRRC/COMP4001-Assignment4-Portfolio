@@ -1,0 +1,24 @@
+name: comp4001-assignment4
+services:
+  studentportfolio:
+    image: studentportfolio:auto
+    build: /home/vagrant/devops-sprints/Studentportfoliotemplate
+    container_name: studentportfolio
+    hostname: studentportfolio
+    ports:
+      - "3000:80"
+    networks: [prfnet]
+    restart: unless-stopped
+  bankingapp:
+    image: bankingapp:auto
+    build: /home/vagrant/devops-sprints/BankingApp
+    container_name: bankingapp
+    hostname: bankingapp
+    ports:
+      - "5090:5090"
+    networks: [prfnet]
+    restart: unless-stopped
+networks:
+  prfnet:
+    name: prf-network
+    driver: bridge

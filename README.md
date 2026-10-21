@@ -31,3 +31,9 @@ Vagrantfile installs Docker and uses Compose to deploy both applications.
 Its network is named prf-network. Image health checks verify HTTP service.
 
 This is a classroom prototype. No real customer or financial data is used.
+
+## Submitted versions
+
+The main branch and sprint-1b-auto tag contain the automated version.
+The sprint-1a-manual tag preserves the manually tested source at 192.168.56.53.
+

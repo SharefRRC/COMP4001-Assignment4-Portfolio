@@ -1,0 +1,13 @@
+# Manual deployment: Docker commands are deliberately run after SSH login.
+Vagrant.configure("2") do |config|
+  config.vm.box = "eurolinux-vagrant/centos-stream-9"
+  config.vm.box_version = "9.0.48"
+  config.vm.hostname = "sharef-manual"
+  config.vm.network "private_network", ip: "192.168.56.53"
+  config.vm.network "public_network", bridge: "Realtek Gaming USB 2.5GbE Family Controller"
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "COMP4001-Sharef-CentOS9-Manual"
+    vb.memory = 2048
+    vb.cpus = 2
+  end
+end
